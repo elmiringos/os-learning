@@ -69,13 +69,59 @@ We'll now explore some of the other flags. One important flag is `-S`, which det
 **Question**
 Now, run the same processes, but with the switching behavior set to switch to another process whenever one is WAITING for I/O (`-l 1:0,4:100 -c -S SWITCH_ON_IO`). What happens now? Use `-c` and `-p` to confirm that you are right.
 
-** Answer**
-- With `SWITCH_ON_IO`, the scheduler immediately switches to a ready process whenever the current process issues I/O.  
-- Process 0 starts its I/O instruction and enters WAITING.  
-- Process 1 (CPU-bound) runs immediately while I/O completes.  
+**Answer**
+- With `SWITCH_ON_IO`, the scheduler immediately switches to a ready process whenever the current process issues I/O.
+- Process 0 starts its I/O instruction and enters WAITING.
+- Process 1 (CPU-bound) runs immediately while I/O completes.
 - This leads to better CPU and I/O overlap.
 
 **Simulation results:**
 - Total time: 6 ticks
 - CPU busy: 5 ticks
 - I/O busy: 4 ticks
+
+
+## 6
+
+**Question**
+One other important behavior is what to do when an I/O completes. With `-I IO RUN LATER`, when an I/O completes, the process that issued it is not necessarily run right away; rather, whatever was running at the time keeps running. What happens when you run this combination of processes? (`./process-run.py -l 3:0,5:100,5:100,5:100 -S SWITCH ON IO -c -p -I IO_RUN_LATER`) Are system resources being effectively utilized?
+
+**Answer**
+- With `IO_RUN_LATER`, when PID 0's I/O completes, it does not immediately resume, the currently running CPU-bound process keeps using the CPU.
+- The system resources are not being used as effectively as they could be (some I/O completion time is wasted waiting for CPU bursts to end).
+
+
+## 7
+
+**Question**
+Now run the same processes, but with `-I IO_RUN_IMMEDIATE` set, which immediately runs the process that issued the I/O. How does this behavior differ? Why might running a process that just completed an I/O again be a good idea?
+
+**Answer**
+- With `IO_RUN_IMMEDIATE`, when PID 0’s I/O completes, it is scheduled to run immediately, instead of waiting for the currently running CPU-bound process to finish.
+- This avoids unnecessary delays for I/O-bound processes and improves overall overlap of CPU and I/O activity.
+- Running the I/O process right away is a good idea because I/O-bound processes often issue more I/O requests; letting them run quickly keeps both CPU and I/O devices busy, leading to more efficient system utilization.
+- However, this approach may not be suitable when there are many I/O-bound processes, as frequent preemptions could increase context-switching overhead and reduce CPU throughput.
+
+
+## 8
+
+**Question**
+Now run with some randomly generated processes using flags `-s 1 -l 3:50,3:50` or `-s 2 -l 3:50,3:50` or `-s 3 -l 3:50,3:50`. See if you can predict how the trace will turn out. What happens when you use the flag `-I IO_RUN_IMMEDIATE` versus that flag `-I IO_RUN_LATER`? What happens when you use the flag `-S SWITCH_ON_IO` versus `-S SWITCH_ON_END`?
+
+
+**Using**
+```./process-run.py -s 1 -l 3:50,3:50 -c -p -I IO_RUN_IMMEDIATE -S SWITCH_ON_IO```
+
+
+**Answer:**
+
+- With two mixed CPU/I/O processes, the `-I` flag controls whether a process that completes I/O runs immediately or has to wait.
+  - With `IO_RUN_IMMEDIATE`, the process resumes right away, which improves overlap of CPU and I/O work.
+  - With `IO_RUN_LATER`, the process waits until the current CPU task finishes, which can reduce efficiency.
+
+- The `-S` flag controls when the scheduler switches on I/O:
+  - With `SWITCH_ON_IO`, the CPU immediately switches to another process when one issues I/O, keeping the CPU busy.
+  - With `SWITCH_ON_END`, the CPU continues running the current process until it completes, which may cause poorer CPU/I/O utilization overall.
+
+- In short: using `IO_RUN_IMMEDIATE` together with `SWITCH_ON_IO` gives the best resource utilization, while `IO_RUN_LATER` combined with `SWITCH_ON_END` results in more idle time and less efficient overlapof CPU and I/O in this scenario.
+
